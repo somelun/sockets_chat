@@ -25,6 +25,10 @@ int main(int argc, char *argv[]) {
   }
 
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  if (sockfd < 0) {
+    perror("Error creating socket");
+    return 1;
+  }
 
   struct sockaddr_in address = {
     .sin_family      = AF_INET,  // IPv4
@@ -32,7 +36,10 @@ int main(int argc, char *argv[]) {
     .sin_addr.s_addr = INADDR_ANY
   };
 
-  connect(sockfd, (struct sockaddr*)&address, sizeof(address));
+  if (connect(sockfd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+    perror("Error connecting socket");
+    return 1;
+  }
 
   struct pollfd fds[2] = {
     {0, POLLIN, 0},    // stdin

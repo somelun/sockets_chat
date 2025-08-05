@@ -41,6 +41,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // first sending the name
+  send(sockfd, client_name, strlen(client_name), 0);
+
   struct pollfd fds[2] = {
     {0, POLLIN, 0},    // stdin
     {sockfd, POLLIN, 0} // server socket

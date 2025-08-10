@@ -111,6 +111,8 @@ int main(int argc, char *argv[]) {
         }
       }
     }
+
+    // cheking messages from the clients here
   }
 
   return 0;

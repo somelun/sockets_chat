@@ -52,16 +52,25 @@ int main(int argc, char *argv[]) {
   for (;;) {
     char buffer[256] = {0};
 
-    poll(fds, 2, 50000);
+    if (poll(fds, 2, 50000)) {
+      perror("Polling error");
+      break;
+    }
 
     if (fds[0].revents & POLLIN) {
-      read(0, buffer, 255);
-      send(sockfd, buffer, 255, 0);
-    } else if (fds[1].revents & POLLIN) {
-      if (recv(sockfd, buffer, 255, 0) == 0) {
-        return 0;
+      int len = read(0, buffer, 255);
+      if (len > 0) {
+        send(sockfd, buffer, 255, 0);
       }
-      printf("received: %s\n", buffer);
+    } else if (fds[1].revents & POLLIN) {
+      int len = recv(sockfd, buffer, 255, 0);
+      if (len <= 0) {
+        perror("Server disconnected");
+        break;
+      }
+      buffer[len] = '\0';
+      printf("%s", buffer);
+      fflush(stdout);
     }
   }
 

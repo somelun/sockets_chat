@@ -5,6 +5,10 @@
 #include <unistd.h>
 #include <string.h>
 
+#ifndef PORT
+#define PORT 8080  // Add default port if not defined
+#endif
+
 #define MAX_CLIENTS 10
 #define NAME_SIZE 25
 
@@ -30,13 +34,17 @@ int main(int argc, char *argv[]) {
 
   if (bind(sockfd, (struct sockaddr*)&address, sizeof(address)) < 0) {
     perror("Error binding socket");
+    close(sockfd);
     return 1;
   }
 
   if (listen(sockfd, MAX_CLIENTS) < 0) {
     perror("Error listening");
+    close(sockfd);
     return 1;
   }
+
+  printf("Server listening on port %d...\n", PORT);
 
   // array of pollfd structures: [0] = server socket, [1+] = clients
   struct pollfd fds[MAX_CLIENTS + 1];
@@ -58,18 +66,18 @@ int main(int argc, char *argv[]) {
   int nfds = 1;
 
   for (;;) {
-    if (poll(fds, nfds, 50000) < 0) {
+    int poll_result = poll(fds, nfds, 50000);
+    if (poll_result < 0) {
       perror("Error polling");
       break;
     }
 
     // checking if we have new connections
-    if (fds[1].revents & POLLIN) {
+    if (fds[0].revents & POLLIN) {
       int clientfd = accept(sockfd, NULL, NULL);
       if (clientfd >= 0) {
 
-        // we find empty stop for the client, I know this can ne optimizied,
-        // but this is for TODO
+        // we find empty slot for the client
         int slot = -1;
         for (int i = 1; i < MAX_CLIENTS + 1; ++i) {
           if (fds[i].fd == -1) {
@@ -114,12 +122,33 @@ int main(int argc, char *argv[]) {
 
     char buffer[256] = {0};
 
-    // cheking messages from the clients here
-    for (int i = 2; i < nfds; ++i) {
+    // checking messages from the clients here
+    for (int i = 1; i < nfds; ++i) {
       if (fds[i].fd != -1 && (fds[i].revents & POLLIN)) {
         int len = recv(fds[i].fd, buffer, 255, 0);
         if (len <= 0) {
-          //
+          // client disconnected
+          printf("[SERVER] Client %s disconnected\n", client_names[i - 1]);
+
+          // notify other clients
+          char leave_msg[100];
+          snprintf(leave_msg, sizeof(leave_msg), "%s left the chat\n", client_names[i - 1]);
+          for (int j = 1; j < nfds; j++) {
+            if (j != i && fds[j].fd != -1) {
+              send(fds[j].fd, leave_msg, strlen(leave_msg), 0);
+            }
+          }
+
+          close(fds[i].fd);
+          fds[i].fd = -1;
+          client_names[i - 1][0] = '\0';  // Clear name
+
+          // adjust nfds if this was the last client
+          if (i == nfds - 1) {
+            while (nfds > 1 && fds[nfds - 1].fd == -1) {
+              nfds--;
+            }
+          }
         } else {
           buffer[len] = '\0';
           // remove newline if present
@@ -129,13 +158,13 @@ int main(int argc, char *argv[]) {
           }
 
           // print message locally
-          printf("%s: %s\n", client_names[i - 2], buffer);
+          printf("%s: %s\n", client_names[i - 1], buffer);
 
           // format message with client name and send to all other clients
           char formatted_msg[350];
-          snprintf(formatted_msg, sizeof(formatted_msg), "%s: %s\n", client_names[i - 2], buffer);
+          snprintf(formatted_msg, sizeof(formatted_msg), "%s: %s\n", client_names[i - 1], buffer);
 
-          for (int j = 2; j < MAX_CLIENTS + 2; j++) {
+          for (int j = 1; j < nfds; j++) {
             if (j != i && fds[j].fd != -1) {
               send(fds[j].fd, formatted_msg, strlen(formatted_msg), 0);
             }
@@ -145,5 +174,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  close(sockfd);
   return 0;
 }

@@ -5,6 +5,10 @@
 #include <unistd.h>
 #include <string.h>
 
+#ifndef PORT
+#define PORT 8080  // Add default port if not defined
+#endif
+
 int main(int argc, char *argv[]) {
   char client_name[32];
 
@@ -52,7 +56,8 @@ int main(int argc, char *argv[]) {
   for (;;) {
     char buffer[256] = {0};
 
-    if (poll(fds, 2, 50000)) {
+    int poll_result = poll(fds, 2, 50000);
+    if (poll_result < 0) {
       perror("Polling error");
       break;
     }
@@ -60,7 +65,7 @@ int main(int argc, char *argv[]) {
     if (fds[0].revents & POLLIN) {
       int len = read(0, buffer, 255);
       if (len > 0) {
-        send(sockfd, buffer, 255, 0);
+        send(sockfd, buffer, len, 0);
       }
     } else if (fds[1].revents & POLLIN) {
       int len = recv(sockfd, buffer, 255, 0);

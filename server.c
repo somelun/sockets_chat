@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
     }
 
     // checking if we have new connections
-    if (fds[0].revents & POLLIN) {
+    if (fds[1].revents & POLLIN) {
       int clientfd = accept(sockfd, NULL, NULL);
       if (clientfd >= 0) {
 
@@ -112,7 +112,37 @@ int main(int argc, char *argv[]) {
       }
     }
 
+    char buffer[256] = {0};
+
     // cheking messages from the clients here
+    for (int i = 2; i < nfds; ++i) {
+      if (fds[i].fd != -1 && (fds[i].revents & POLLIN)) {
+        int len = recv(fds[i].fd, buffer, 255, 0);
+        if (len <= 0) {
+          //
+        } else {
+          buffer[len] = '\0';
+          // remove newline if present
+          char *newline = strchr(buffer, '\n');
+          if (newline) {
+            *newline = '\0';
+          }
+
+          // print message locally
+          printf("%s: %s\n", client_names[i - 2], buffer);
+
+          // format message with client name and send to all other clients
+          char formatted_msg[350];
+          snprintf(formatted_msg, sizeof(formatted_msg), "%s: %s\n", client_names[i - 2], buffer);
+
+          for (int j = 2; j < MAX_CLIENTS + 2; j++) {
+            if (j != i && fds[j].fd != -1) {
+              send(fds[j].fd, formatted_msg, strlen(formatted_msg), 0);
+            }
+          }
+        }
+      }
+    }
   }
 
   return 0;
